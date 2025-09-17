@@ -1,6 +1,28 @@
 import { Nfc } from '@hereismass/capacitor-nfc';
 
-window.testEcho = () => {
-    const inputValue = document.getElementById("echoInput").value;
-    Nfc.echo({ value: inputValue })
+window.testIsAvailable = () => {
+    Nfc.isAvailable().then((result) => {
+        document.getElementById("isAvailable").innerHTML = result.available;
+    });
 }
+
+window.testRead = () => {
+    Nfc.read().then((result) => {
+        document.getElementById("readResult").innerHTML = result.serialNumber;
+    }).catch((error) => {
+        document.getElementById("readResult").innerHTML = error.message;
+    });
+}
+
+window.testWrite = () => {
+    Nfc.write({
+        records: [{
+            recordType: "text",
+            data: "Hello, World!"
+        }]
+    }).then(() => {
+        document.getElementById("writeResult").innerHTML = "Success";
+    });
+}
+
+
