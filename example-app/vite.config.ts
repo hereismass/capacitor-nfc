@@ -7,4 +7,8 @@ export default defineConfig({
     minify: false,
     emptyOutDir: true,
   },
+  server: {
+    host: '0.0.0.0',
+    allowedHosts: ['.ngrok-free.app'],
+  },
 });

@@ -7,8 +7,21 @@ const NfcPlug = registerPlugin<NfcPluginInternal>('Nfc', {
 });
 
 export * from './definitions';
+
+
+
+// let isReading = false;
+
+
 export const Nfc: NfcPlugin = {
   isAvailable: NfcPlug.isAvailable.bind(NfcPlug),
+  /* read: async () => {
+   const result = await NfcPlug.read();
+   console.log('serialNumber', result.serialNumber);
+   console.log('message', result.message);
+   return result;
+  }, */
+
   read: async () => {
     console.log('read');
     return Promise.resolve({
@@ -25,5 +38,6 @@ export const Nfc: NfcPlugin = {
 };
 
 NfcPlug.addListener('onRead', (data) => {
+  // we receive data from the platform
   console.log('onRead', data);
 });

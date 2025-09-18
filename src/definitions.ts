@@ -16,6 +16,7 @@ export interface NfcPluginInternal {
    * Check if NFC is supported
    */
   isAvailable(): Promise<{ available: boolean }>;
+  // read(): Promise<NfcReadEvent>;
 
   addListener(eventName: 'onRead', listener: (data: any) => void): void;
   addListener(eventName: 'onWrite', listener: () => void): void;

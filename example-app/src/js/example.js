@@ -8,7 +8,7 @@ window.testIsAvailable = () => {
 
 window.testRead = () => {
     Nfc.read().then((result) => {
-        document.getElementById("readResult").innerHTML = result.serialNumber;
+        document.getElementById("readResult").innerHTML = JSON.stringify(result, null, 2);
     }).catch((error) => {
         document.getElementById("readResult").innerHTML = error.message;
     });
