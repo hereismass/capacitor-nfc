@@ -8,21 +8,13 @@ window.testIsAvailable = () => {
 
 window.testRead = () => {
     Nfc.read().then((result) => {
-        document.getElementById("readResult").innerHTML = JSON.stringify(result, null, 2);
-    }).catch((error) => {
-        document.getElementById("readResult").innerHTML = error.message;
+        console.log("testRead", result);
+        document.getElementById("readResult").innerHTML = result.message;
     });
 }
 
 window.testWrite = () => {
-    Nfc.write({
-        records: [{
-            recordType: "text",
-            data: "Hello, World!"
-        }]
-    }).then(() => {
-        document.getElementById("writeResult").innerHTML = "Success";
-    });
+    console.log("testWrite");
 }
 
 
