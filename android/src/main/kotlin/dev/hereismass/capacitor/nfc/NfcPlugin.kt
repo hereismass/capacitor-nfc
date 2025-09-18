@@ -78,10 +78,10 @@ class NfcPlugin : Plugin() {
     }
 
     @PluginMethod
-    fun isSupported(call: PluginCall) {
+    fun isAvailable(call: PluginCall) {
         val adapter = NfcAdapter.getDefaultAdapter(this.activity)
         val ret = JSObject()
-        ret.put("supported", adapter != null)
+        ret.put("available", adapter != null)
         call.resolve(ret)
     }
 
