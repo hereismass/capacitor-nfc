@@ -1,4 +1,4 @@
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { registerPlugin } from '@capacitor/core';
 
 import type {
   NfcPlugin,
@@ -26,17 +26,11 @@ export const Nfc: NfcPlugin = {
   isAvailable: NfcPlug.isAvailable.bind(NfcPlug),
   cancelRead: NfcPlug.cancelRead.bind(NfcPlug),
   cancelWrite: NfcPlug.cancelWrite.bind(NfcPlug),
-
   read: async () => {
     if (Nfc.isBusy === true) {
       throw new Error('An action is already in progress');
     }
     Nfc.isBusy = true;
-    
-    if (Capacitor.getPlatform() === 'web') {
-      await NfcPlug.startRead();
-    }
-    
     return new Promise<NfcReadEvent>((resolve, reject) => {
       Nfc.readPromise = { resolve, reject };
     });
@@ -50,11 +44,7 @@ export const Nfc: NfcPlugin = {
       throw new Error('At least one NDEF record is required');
     }
 
-    let messageToWrite: NfcNativeMessage | NfcMessage = message;
-
-    if (Capacitor.getPlatform() === 'android') {
-      messageToWrite = formatWrittenPayload(message);
-    }
+    let messageToWrite = formatWrittenPayload(message);
 
     await NfcPlug.writeNDEF(messageToWrite);
 
@@ -63,8 +53,6 @@ export const Nfc: NfcPlugin = {
     });
   },
 };
-
-
 
 
 // Helper encoders for well-known record types (only applied to string payloads)
@@ -195,29 +183,16 @@ const formatWriteType = (type: 'text' | 'url'): 'T' | 'U' => {
 }
 
 const formatMobileReceivedPayload = (data: { serialNumber: string, message: {records: any[]} }): NfcReadEvent => {
+
   return {
     serialNumber: data.serialNumber,
     message: {
-      records: data.message.records.map((record: any) => {
+      records: data.message?.records?.map((record: any) => {
         return {
           recordType: formatReadType(record.type),
           data: toStringPayload(formatReadType(record.type), decodeBase64ToBytes(record.payload))
         }
-      })
-    }
-  };
-};
-
-const formatWebReceivedPayload = (data: { serialNumber: string, message: {records: any[]} }): NfcReadEvent => {
-  return {
-    serialNumber: data.serialNumber,
-    message: {
-      records: data.message.records.map((record: any) => {
-        return {
-          recordType: record.recordType,
-          data: toStringPayload(record.type, record.data)
-        }
-      })
+      }) || []
     }
   };
 };
@@ -267,14 +242,8 @@ NfcPlug.addListener('onRead', (data: any): void => {
     Nfc.readPromise.reject(data.error);
     return;
   }
-  switch (Capacitor.getPlatform()) {
-    case 'android':
-      data = formatMobileReceivedPayload(data);
-      break;
-    case 'web':
-      data = formatWebReceivedPayload(data);
-      break;
-  }
+
+  data = formatMobileReceivedPayload(data);
   
   Nfc.readPromise.resolve(data);
 });

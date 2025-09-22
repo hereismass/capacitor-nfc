@@ -13,16 +13,17 @@ window.testRead = () => {
 }
 
 window.testWrite = () => {
-    console.log("testWrite");
+    const r = Math.random();
+    console.log("testWrite", r);
     Nfc.write({
         records: [
             {
                 recordType: 'text',
-                data: "Hello, NFC!" + Math.random()
+                data: "Hello, NFC! " + r
             },
             {
                 recordType: 'url',
-                data: "https://app.geartracker.net"
+                data: "https://app.geartracker.net/i/1234567890"
             }
         ]
     }).then((result) => {

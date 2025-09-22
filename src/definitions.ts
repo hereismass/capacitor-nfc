@@ -24,7 +24,7 @@ export interface NfcPluginBasic {
   startRead(): Promise<void>;
 
 
-  writeNDEF(message: NfcNativeMessage | NfcMessage): Promise<void>;
+  writeNDEF(message: NfcNativeMessage): Promise<void>;
 
   
 
