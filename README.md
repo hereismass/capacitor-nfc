@@ -1,6 +1,6 @@
 # @hereismass/capacitor-nfc
 
-Capacitor plugin to use NFC on web/ios/android
+Capacitor plugin to use NFC on web/ios/android. Only Android for now
 
 ## Install
 
