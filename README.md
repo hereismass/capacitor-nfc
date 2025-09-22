@@ -1,6 +1,6 @@
 # @hereismass/capacitor-nfc
 
-Capacitor plugin to use NFC on web/ios/android
+Capacitor plugin to use NFC on web/ios/android. Only Android for now
 
 ## Install
 
@@ -13,52 +13,12 @@ npx cap sync
 
 <docgen-index>
 
-* [`isAvailable()`](#isavailable)
-* [`read()`](#read)
-* [`write(...)`](#write)
 * [Interfaces](#interfaces)
 
 </docgen-index>
 
 <docgen-api>
 <!--Update the source file JSDoc comments and rerun docgen to update the docs below-->
-
-### isAvailable()
-
-```typescript
-isAvailable() => any
-```
-
-**Returns:** <code>any</code>
-
---------------------
-
-
-### read()
-
-```typescript
-read() => any
-```
-
-**Returns:** <code>any</code>
-
---------------------
-
-
-### write(...)
-
-```typescript
-write(message: NfcMessage) => any
-```
-
-| Param         | Type                                              |
-| ------------- | ------------------------------------------------- |
-| **`message`** | <code><a href="#nfcmessage">NfcMessage</a></code> |
-
-**Returns:** <code>any</code>
-
---------------------
-
 
 ### Interfaces
 
@@ -80,9 +40,16 @@ write(message: NfcMessage) => any
 
 #### NfcRecord
 
-| Prop             | Type                |
-| ---------------- | ------------------- |
-| **`recordType`** | <code>string</code> |
-| **`data`**       | <code>string</code> |
+| Prop             | Type                         |
+| ---------------- | ---------------------------- |
+| **`recordType`** | <code>'text' \| 'url'</code> |
+| **`data`**       | <code>string</code>          |
+
+
+#### NfcWriteEvent
+
+| Prop               | Type                |
+| ------------------ | ------------------- |
+| **`serialNumber`** | <code>string</code> |
 
 </docgen-api>
