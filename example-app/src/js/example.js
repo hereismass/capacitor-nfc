@@ -9,7 +9,7 @@ window.testIsAvailable = () => {
 window.testRead = () => {
     Nfc.read().then((result) => {
         console.log("testRead", result);
-        document.getElementById("readResult").innerHTML = result.message;
+        document.getElementById("readResult").innerHTML = JSON.stringify(result, null, 2);
     });
 }
 

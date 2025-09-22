@@ -1,4 +1,4 @@
-import { registerPlugin } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 import type {
   NfcPlugin,
@@ -23,6 +23,10 @@ export const Nfc: NfcPlugin = {
 
   read: async () => {
     console.log('read');
+    if (Nfc.isReading === true) {
+      throw new Error('Already reading');
+    }
+    Nfc.isReading = true;
     return new Promise<NfcReadEvent>((resolve, reject) => {
       Nfc.readPromise = { resolve, reject };
     });
@@ -32,31 +36,7 @@ export const Nfc: NfcPlugin = {
     return Promise.resolve();
   },
 
-  /* onRead: (func: TagResultListenerFunc) => {
-    Nfc.wrapperListeners.push(func);
-    // Return unsubscribe function
-    return () => {
-      Nfc.wrapperListeners = Nfc.wrapperListeners.filter((l) => l !== func);
-    };
-  },
-  onWrite: (func: () => void) => {
-    let handle: any;
-    NfcPlug.addListener(`nfcWriteSuccess`, func).then((h) => (handle = h));
-    return () => {
-      try {
-        handle?.remove?.();
-      } catch {}
-    };
-  },
-  onError: (errorFn: (error: NFCError) => void) => {
-    let handle: any;
-    NfcPlug.addListener(`nfcError`, errorFn).then((h) => (handle = h));
-    return () => {
-      try {
-        handle?.remove?.();
-      } catch {}
-    };
-  }, */
+
   /* removeAllListeners: (eventName: 'nfcTag' | 'nfcError') => {
     Nfc.wrapperListeners = [];
     return NfcPlug.removeAllListeners(eventName);
@@ -110,11 +90,14 @@ export const Nfc: NfcPlugin = {
   }, */
 };
 
+
 // ----- Payload transformation helpers -----
 /* type DecodeSpecifier = 'b64' | 'string' | 'uint8Array' | 'numberArray';
 type decodedType<T extends DecodeSpecifier> = NDEFMessages<
   T extends 'b64' ? string : T extends 'string' ? string : T extends 'uint8Array' ? Uint8Array : number[]
 >;
+
+*/
 
 // Decode a base64 string into a Uint8Array (browser-safe). Existing code used atob already.
 const decodeBase64ToBytes = (base64Payload: string): Uint8Array => {
@@ -215,57 +198,43 @@ const toStringPayload = (recordType: string, bytes: Uint8Array): string => {
   }
 };
 
-const mapPayloadTo = <T extends DecodeSpecifier>(type: T, data: NDEFMessages): decodedType<T> => {
+
+
+const formatType = (type: string): string => {
+  switch (type) {
+    case 'T': return 'text';
+    case 'U': return 'url';
+    default: return type;
+  }
+}
+
+const formatPayload = (data: any): NfcReadEvent => {
   return {
-    messages: data.messages.map((message) => ({
-      records: message.records.map((record) => {
-        const bytes = decodeBase64ToBytes(record.payload as unknown as string);
-        let payload: any;
-        switch (type) {
-          case 'b64':
-            payload = record.payload; // original base64 string
-            break;
-          case 'uint8Array':
-            payload = bytes;
-            break;
-          case 'numberArray':
-            payload = Array.from(bytes);
-            break;
-          case 'string':
-            payload = toStringPayload(record.type, bytes);
-            break;
-          default:
-            payload = record.payload;
+    serialNumber: data.serialNumber,
+    message: {
+      records: data.message.records.map((record: any) => {
+        return {
+          recordType: formatType(record.type),
+          data: toStringPayload(record.type, decodeBase64ToBytes(record.payload))
         }
-        return { type: record.type, payload };
-      }),
-    })),
-  } as decodedType<T>;
-}; */
+      })
+    }
+  };
+};
 
-NfcPlug.addListener('onRead', (data) => {
-  /* const wrappedData: NDEFMessagesTransformable = {
-    base64() {
-      return mapPayloadTo('b64', data);
-    },
-    string() {
-      return mapPayloadTo('string', data);
-    },
-    uint8Array() {
-      return mapPayloadTo('uint8Array', data);
-    },
-    numberArray() {
-      return mapPayloadTo('numberArray', data);
-    },
-  }; */
+NfcPlug.addListener('onRead', (data: any): void => {
 
-  /* 
+  if (Nfc.isReading === false) {
+    return;
+  }
+  console.log(Capacitor.getPlatform());
+  console.log("onRead", data);
+  if (Capacitor.getPlatform() === 'android') {
+    console.log("formatPayload for android");
+    data = formatPayload(data);
+  }
 
-  for (const listener of Nfc.wrapperListeners) {
-    listener(wrappedData);
-  } */
-
-    console.log("onRead", data);
+  console.log("onRead after format", data);
 
   Nfc.readPromise.resolve(data);
 });

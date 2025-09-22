@@ -215,11 +215,9 @@ class NfcPlugin : Plugin() {
                             val msg = NdefMessage(mimeRecord)
                             formatable.format(msg)
                             // Success!
-                            // Emit event to Capacitor plugin for success
-                            println("Successfully formatted and wrote NDEF message to tag!")
+                            println("Successfully formatted NDEF message to tag!")
                         } catch (e: IOException) {
                             // Error connecting or formatting
-                            // Emit event to Capacitor plugin for error
                             println("Error formatting or writing to NDEF-formatable tag: ${e.message}")
                         } catch (e: Exception) { // Catch other potential exceptions during format, like TagLostException
                             println("Error during NDEF formatting: ${e.message}")
@@ -312,58 +310,55 @@ class NfcPlugin : Plugin() {
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun handleReadTag(intent: Intent) {
         val jsResponse = JSObject()
-        val ndefMessages = JSArray()
 
-        // Try to obtain raw NDEF messages first (ACTION_NDEF_DISCOVERED path)
+        Log.i("Nfc", "intent action: ${intent.action}")
+        
+        // Get the tag ID
+        val tagId = intent.getByteArrayExtra(NfcAdapter.EXTRA_ID)
+        val result = if (tagId != null) byteArrayToHexString(tagId) else ""
+        Log.i("Nfc", "tagId: $result")
+        jsResponse.put("serialNumber", result)
+
+
+        // Try to obtain raw NDEF messages first
         val receivedMessages = intent.getParcelableArrayExtra(
             EXTRA_NDEF_MESSAGES,
             NdefMessage::class.java
         )
 
         if (receivedMessages != null && receivedMessages.isNotEmpty()) {
-            // Standard NDEF-discovered path
-            for (message in receivedMessages) {
-                ndefMessages.put(ndefMessageToJS(message))
-            }
-        } else {
-            // For ACTION_TAG_DISCOVERED or ACTION_TECH_DISCOVERED we may still have an NDEF tag.
-            val tag: Tag? = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
-            var added = false
-            if (tag != null) {
-                val ndef = Ndef.get(tag)
-                if (ndef != null) {
-                    try {
-                        ndef.connect()
-                        // Prefer cached message to avoid additional IO if available
-                        val message: NdefMessage? = ndef.cachedNdefMessage ?: try {
-                            ndef.ndefMessage
-                        } catch (e: Exception) { null }
-                        if (message != null) {
-                            ndefMessages.put(ndefMessageToJS(message))
-                            added = true
-                        }
-                    } catch (e: Exception) {
-                        Log.w("Nfc", "Failed to read NDEF message from TECH/TAG intent: ${e.message}")
-                    } finally {
-                        try { ndef.close() } catch (_: Exception) {}
-                    }
-                }
+            Log.i("Nfc", "receivedMessages length: ${receivedMessages.size}")
+            
+            jsResponse.put("message", ndefMessageToJS(receivedMessages[0]))
+            this.notifyListeners("onRead", jsResponse)
 
-                // If no NDEF message found, fallback to tag ID (legacy behavior)
-                if (!added) {
-                    val tagId = intent.getByteArrayExtra(NfcAdapter.EXTRA_ID)
-                    val result = if (tagId != null) byteArrayToHexString(tagId) else ""
-                    val rec = JSObject()
-                    rec.put("type", "ID")
-                    rec.put("payload", Base64.getEncoder().encodeToString(result.toByteArray()))
-                    val ndefRecords = JSArray().apply { put(rec) }
-                    val msg = JSObject().apply { put("records", ndefRecords) }
-                    ndefMessages.put(msg)
+            return 
+        } 
+
+        Log.i("Nfc", "No NDEF messages found, fallback to tag")
+
+        // We may still have an NDEF tag.
+        val tag: Tag? = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
+        if (tag != null) {
+            val ndef = Ndef.get(tag)
+            if (ndef != null) {
+                try {
+                    ndef.connect()
+                    // Prefer cached message to avoid additional IO if available
+                    val message: NdefMessage? = ndef.cachedNdefMessage ?: try {
+                        ndef.ndefMessage
+                    } catch (e: Exception) { null }
+                    if (message != null) {
+                        jsResponse.put("message", ndefMessageToJS(message))
+                    }
+                } catch (e: Exception) {
+                    Log.w("Nfc", "Failed to read NDEF message from TECH/TAG intent: ${e.message}")
+                } finally {
+                    try { ndef.close() } catch (_: Exception) {}
                 }
             }
         }
-
-        jsResponse.put("messages", ndefMessages)
+        
         this.notifyListeners("onRead", jsResponse)
     }
 
@@ -381,16 +376,29 @@ class NfcPlugin : Plugin() {
     }
 
     private fun byteArrayToHexString(inarray: ByteArray): String {
-        val hex = arrayOf("0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F")
-        var out = ""
-
-        for (j in inarray.size - 1 downTo 0) {
-            val `in` = inarray[j].toInt() and 0xff
-            val i1 = (`in` shr 4) and 0x0f
-            out += hex[i1]
-            val i2 = `in` and 0x0f
-            out += hex[i2]
+        // Convert byte array to hex string first, then apply the same logic as arrayToHex
+        val hexString = inarray.joinToString("") { byte ->
+            (byte.toInt() and 0xFF).toString(16).padStart(2, '0')
         }
-        return out
+        
+        // Now apply the same logic as the JavaScript arrayToHex function
+        // Step 1: Treat hex string as ASCII characters (already done above)
+        
+        // Step 2: Parse as hex pairs
+        val hexPairs = mutableListOf<Int>()
+        var i = 0
+        while (i < hexString.length - 1) {
+            val pair = hexString.substring(i, i + 2)
+            val hexValue = pair.toInt(16)
+            hexPairs.add(hexValue)
+            i += 2
+        }
+        
+        // Step 3: Reverse the order
+        val reversedPairs = hexPairs.reversed()
+        
+        // Step 4: Format as hex string
+        return reversedPairs.joinToString(":") { it.toString(16).padStart(2, '0') }
+            .lowercase()
     }
 }
