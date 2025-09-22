@@ -40,9 +40,16 @@ npx cap sync
 
 #### NfcRecord
 
-| Prop             | Type                |
-| ---------------- | ------------------- |
-| **`recordType`** | <code>string</code> |
-| **`data`**       | <code>string</code> |
+| Prop             | Type                         |
+| ---------------- | ---------------------------- |
+| **`recordType`** | <code>'text' \| 'url'</code> |
+| **`data`**       | <code>string</code>          |
+
+
+#### NfcWriteEvent
+
+| Prop               | Type                |
+| ------------------ | ------------------- |
+| **`serialNumber`** | <code>string</code> |
 
 </docgen-api>

@@ -21,7 +21,10 @@ export interface NfcPluginBasic {
   cancelWrite(): Promise<void>;
 
 
-  writeNDEF(options: any): Promise<void>;
+  startRead(): Promise<void>;
+
+
+  writeNDEF(message: NfcNativeMessage | NfcMessage): Promise<void>;
 
   
 
@@ -37,20 +40,25 @@ export interface NfcPluginBasic {
 
   addListener(
     eventName: 'onWrite',
-    listenerFunc: () => void,
+    listenerFunc: (data: NfcWriteEvent & { success: boolean, error?: string }) => void,
   ): void;
 
-  addListener(
-    eventName: 'onError',
-    listenerFunc: (error: any) => void,
-  ): void;
 
-  removeAllListeners(eventName: 'onRead' | 'onWrite' | 'onError'): void;
+  removeAllListeners(eventName: 'onRead' | 'onWrite'): void;
 }
 
 export interface NfcRecord {
-  recordType: 'empty' | 'text' | 'url' | 'smart-poster' | 'mime' | 'unknown' | string;
+  recordType: 'text' | 'url';
   data: string;
+}
+
+export interface NfcNativeRecord {
+  type: 'T' | 'U';
+  payload: number[];
+}
+
+export interface NfcNativeMessage {
+  records: NfcNativeRecord[];
 }
 
 export interface NfcMessage {
@@ -62,12 +70,20 @@ export interface NfcReadEvent {
   message: NfcMessage;
 }
 
+export interface NfcWriteEvent {
+  serialNumber: string;
+}
+
 export interface NfcPlugin extends Pick<NfcPluginBasic, 'isAvailable' | 'cancelRead' | 'cancelWrite'> {
   readPromise: {
     resolve: (value: NfcReadEvent) => void;
     reject: (reason?: any) => void;
   };
-  isReading: boolean;
+  writePromise: {
+    resolve: (value: NfcWriteEvent) => void;
+    reject: (value: NfcWriteEvent & { error: string }) => void;
+  };
+  isBusy: boolean;
   read: () => Promise<NfcReadEvent>;
-  write: (message: NfcMessage) => Promise<void>;
+  write: (message: NfcMessage) => Promise<NfcWriteEvent>;
 }

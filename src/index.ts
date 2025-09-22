@@ -5,6 +5,8 @@ import type {
   NfcPluginBasic,
   NfcReadEvent,
   NfcMessage,
+  NfcNativeMessage,
+  NfcWriteEvent,
 } from './definitions';
 
 const NfcPlug = registerPlugin<NfcPluginBasic>('Nfc', {
@@ -16,88 +18,66 @@ export const Nfc: NfcPlugin = {
     resolve: () => {},
     reject: () => {},
   },
-  isReading: false,
+  writePromise: {
+    resolve: () => {},
+    reject: () => {},
+  },
+  isBusy: false,
   isAvailable: NfcPlug.isAvailable.bind(NfcPlug),
   cancelRead: NfcPlug.cancelRead.bind(NfcPlug),
   cancelWrite: NfcPlug.cancelWrite.bind(NfcPlug),
 
   read: async () => {
-    console.log('read');
-    if (Nfc.isReading === true) {
-      throw new Error('Already reading');
+    if (Nfc.isBusy === true) {
+      throw new Error('An action is already in progress');
     }
-    Nfc.isReading = true;
+    Nfc.isBusy = true;
+    
+    if (Capacitor.getPlatform() === 'web') {
+      await NfcPlug.startRead();
+    }
+    
     return new Promise<NfcReadEvent>((resolve, reject) => {
       Nfc.readPromise = { resolve, reject };
     });
   },
   write: async (message: NfcMessage) => {
-    console.log('write', message);
-    return Promise.resolve();
+    if (Nfc.isBusy === true) {
+      throw new Error('An action is already in progress');
+    }
+    Nfc.isBusy = true;
+    if (message.records.length === 0) {
+      throw new Error('At least one NDEF record is required');
+    }
+
+    let messageToWrite: NfcNativeMessage | NfcMessage = message;
+
+    if (Capacitor.getPlatform() === 'android') {
+      messageToWrite = formatWrittenPayload(message);
+    }
+
+    await NfcPlug.writeNDEF(messageToWrite);
+
+    return new Promise<NfcWriteEvent>((resolve, reject) => {
+      Nfc.writePromise = { resolve, reject };
+    });
   },
-
-
-  /* removeAllListeners: (eventName: 'nfcTag' | 'nfcError') => {
-    Nfc.wrapperListeners = [];
-    return NfcPlug.removeAllListeners(eventName);
-  },
-  wrapperListeners: [], */
-
-  /* async writeNDEF<T extends PayloadType = Uint8Array>(options?: NDEFWriteOptions<T>): Promise<void> {
-    // Helper encoders for well-known record types (only applied to string payloads)
-    const buildTextPayload = (text: string, lang = 'en'): number[] => {
-      const langBytes = Array.from(new TextEncoder().encode(lang));
-      const textBytes = Array.from(new TextEncoder().encode(text));
-      const status = langBytes.length & 0x3f; // UTF-8 encoding, language length (<= 63)
-      return [status, ...langBytes, ...textBytes];
-    };
-    const buildUriPayload = (uri: string, prefixCode = 0x00): number[] => {
-      const uriBytes = Array.from(new TextEncoder().encode(uri));
-      return [prefixCode, ...uriBytes];
-    };
-
-    const recordsArray = options?.records ?? [];
-    if (recordsArray.length === 0) throw new Error('At least one NDEF record is required');
-
-    const ndefMessage: NDEFWriteOptions<number[]> = {
-      records: recordsArray.map((record) => {
-        let payload: number[] | null = null;
-
-        if (typeof record.payload === 'string') {
-          // Apply spec-compliant formatting only for Well Known Text (T) & URI (U) types.
-          if (record.type === 'T') {
-            payload = buildTextPayload(record.payload);
-          } else if (record.type === 'U') {
-            payload = buildUriPayload(record.payload);
-          } else {
-            // Generic string: raw UTF-8 bytes (no extra framing)
-            payload = Array.from(new TextEncoder().encode(record.payload));
-          }
-        } else if (Array.isArray(record.payload)) {
-          // Assume already raw bytes; do NOT modify
-          payload = record.payload as number[];
-        } else if (record.payload instanceof Uint8Array) {
-          payload = Array.from(record.payload);
-        }
-
-        if (!payload) throw new Error('Unsupported payload type');
-
-        return { type: record.type, payload };
-      }),
-    };
-
-    await NfcPlug.writeNDEF(ndefMessage);
-  }, */
 };
 
 
-// ----- Payload transformation helpers -----
-/* type DecodeSpecifier = 'b64' | 'string' | 'uint8Array' | 'numberArray';
-type decodedType<T extends DecodeSpecifier> = NDEFMessages<
-  T extends 'b64' ? string : T extends 'string' ? string : T extends 'uint8Array' ? Uint8Array : number[]
->;
 
-*/
+
+// Helper encoders for well-known record types (only applied to string payloads)
+const buildTextPayload = (text: string, lang = 'en'): number[] => {
+  const langBytes = Array.from(new TextEncoder().encode(lang));
+  const textBytes = Array.from(new TextEncoder().encode(text));
+  const status = langBytes.length & 0x3f; // UTF-8 encoding, language length (<= 63)
+  return [status, ...langBytes, ...textBytes];
+};
+const buildUriPayload = (uri: string, prefixCode = 0x00): number[] => {
+  const uriBytes = Array.from(new TextEncoder().encode(uri));
+  return [prefixCode, ...uriBytes];
+};
 
 // Decode a base64 string into a Uint8Array (browser-safe). Existing code used atob already.
 const decodeBase64ToBytes = (base64Payload: string): Uint8Array => {
@@ -183,11 +163,11 @@ const decodeUriRecord = (bytes: Uint8Array): string => {
   }
 };
 
-const toStringPayload = (recordType: string, bytes: Uint8Array): string => {
+const toStringPayload = (recordType: 'text' | 'url', bytes: Uint8Array): string => {
   // Well Known Text
-  if (recordType === 'T') return decodeTextRecord(bytes);
+  if (recordType === 'text') return decodeTextRecord(bytes);
   // Well Known URI
-  if (recordType === 'U') return decodeUriRecord(bytes);
+  if (recordType === 'url') return decodeUriRecord(bytes);
   // Default: attempt UTF-8 decode
   try {
     return new TextDecoder('utf-8').decode(bytes);
@@ -198,9 +178,7 @@ const toStringPayload = (recordType: string, bytes: Uint8Array): string => {
   }
 };
 
-
-
-const formatType = (type: string): string => {
+const formatReadType = (type: 'T' | 'U'): 'text' | 'url' => {
   switch (type) {
     case 'T': return 'text';
     case 'U': return 'url';
@@ -208,33 +186,108 @@ const formatType = (type: string): string => {
   }
 }
 
-const formatPayload = (data: any): NfcReadEvent => {
+const formatWriteType = (type: 'text' | 'url'): 'T' | 'U' => {
+  switch (type) {
+    case 'text': return 'T';
+    case 'url': return 'U';
+    default: return type;
+  }
+}
+
+const formatMobileReceivedPayload = (data: { serialNumber: string, message: {records: any[]} }): NfcReadEvent => {
   return {
     serialNumber: data.serialNumber,
     message: {
       records: data.message.records.map((record: any) => {
         return {
-          recordType: formatType(record.type),
-          data: toStringPayload(record.type, decodeBase64ToBytes(record.payload))
+          recordType: formatReadType(record.type),
+          data: toStringPayload(formatReadType(record.type), decodeBase64ToBytes(record.payload))
         }
       })
     }
   };
 };
 
-NfcPlug.addListener('onRead', (data: any): void => {
+const formatWebReceivedPayload = (data: { serialNumber: string, message: {records: any[]} }): NfcReadEvent => {
+  return {
+    serialNumber: data.serialNumber,
+    message: {
+      records: data.message.records.map((record: any) => {
+        return {
+          recordType: record.recordType,
+          data: toStringPayload(record.type, record.data)
+        }
+      })
+    }
+  };
+};
 
-  if (Nfc.isReading === false) {
+const formatWrittenPayload = (message: NfcMessage): NfcNativeMessage => {
+  return {
+    records: message.records.map((record) => {
+
+      let payload: number[] | null = null;
+      const type = formatWriteType(record.recordType);
+      if (typeof record.data === 'string') {
+        // Apply spec-compliant formatting only for Well Known Text (T) & URI (U) types.
+        if (type === 'T') {
+          payload = buildTextPayload(record.data);
+        } else if (type === 'U') {
+          payload = buildUriPayload(record.data);
+        } else {
+          // Generic string: raw UTF-8 bytes (no extra framing)
+          payload = Array.from(new TextEncoder().encode(record.data));
+        }
+      } else if (Array.isArray(record.data)) {
+        // Assume already raw bytes; do NOT modify
+        payload = record.data as number[];
+      } else if (record.data as any instanceof Uint8Array) {
+        payload = Array.from(record.data);
+      }
+
+      if (!payload) {
+        throw new Error('Unsupported payload type');
+      }
+      
+      return {
+        type,
+        payload
+      }
+    })
+  };
+}
+
+
+NfcPlug.addListener('onRead', (data: any): void => {
+  if (Nfc.isBusy === false) {
     return;
   }
-  console.log(Capacitor.getPlatform());
-  console.log("onRead", data);
-  if (Capacitor.getPlatform() === 'android') {
-    console.log("formatPayload for android");
-    data = formatPayload(data);
+  Nfc.isBusy = false;
+  if (data.success === false) {
+    Nfc.readPromise.reject(data.error);
+    return;
+  }
+  switch (Capacitor.getPlatform()) {
+    case 'android':
+      data = formatMobileReceivedPayload(data);
+      break;
+    case 'web':
+      data = formatWebReceivedPayload(data);
+      break;
+  }
+  
+  Nfc.readPromise.resolve(data);
+});
+
+NfcPlug.addListener('onWrite', (data: NfcWriteEvent & { success: boolean, error?: string }) => {
+  if (Nfc.isBusy === false) {
+    return;
+  }
+  Nfc.isBusy = false;
+  if (data.success) {
+    Nfc.writePromise.resolve({ serialNumber: data.serialNumber });
+  } else {
+    Nfc.writePromise.reject({ serialNumber: data.serialNumber, error: data.error! });
   }
 
-  console.log("onRead after format", data);
-
-  Nfc.readPromise.resolve(data);
 });

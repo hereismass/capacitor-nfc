@@ -165,6 +165,14 @@ class NfcPlugin : Plugin() {
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun handleWriteTag(intent: Intent) {
+        val jsResponse = JSObject()
+
+        Log.i("Nfc", "handleWriteTag called")
+        val tagId = intent.getByteArrayExtra(NfcAdapter.EXTRA_ID)
+        val resultId = if (tagId != null) byteArrayToHexString(tagId) else ""
+        jsResponse.put("serialNumber", resultId)
+        jsResponse.put("success", false)
+
         val records = recordsBuffer?.toList<JSONObject>()
         if(records != null) {
             val ndefRecords = mutableListOf<NdefRecord>()
@@ -175,12 +183,13 @@ class NfcPlugin : Plugin() {
                     val type: String? = record.getString("type")
 
                     if (payload.length() == 0 || type == null) {
+                        jsResponse.put(
+                            "error",
+                            "Invalid record: payload or type is missing."
+                        )   
                         notifyListeners(
-                            "onError",
-                            JSObject().put(
-                                "error",
-                                "Invalid record: payload or type is missing."
-                            )
+                            "onWrite",
+                            jsResponse    
                         )
                         return
                     }
@@ -231,12 +240,13 @@ class NfcPlugin : Plugin() {
 
                         ndef = Ndef.get(formatable.tag)
                     } else {
+                        jsResponse.put(
+                            "error",
+                            "Tag does not support NDEF writing."
+                        )
                         notifyListeners(
-                            "onError",
-                            JSObject().put(
-                                "error",
-                                "Tag does not support NDEF writing."
-                            )
+                            "onWrite",
+                            jsResponse
                         )
                         return
                     }
@@ -245,22 +255,24 @@ class NfcPlugin : Plugin() {
                 ndef.use { // Use block ensures ndef.close() is called
                     ndef.connect()
                     if (!ndef.isWritable) {
+                        jsResponse.put(
+                            "error",
+                            "NFC tag is not writable"
+                        )
                         notifyListeners(
-                            "onError",
-                            JSObject().put(
-                                "error",
-                                "NFC tag is not writable"
-                            )
+                            "onWrite",
+                            jsResponse
                         )
                         return
                     }
                     if (ndef.maxSize < ndefMessage.toByteArray().size) {
+                        jsResponse.put(
+                            "error",
+                            "Message too large for this NFC Tag (max ${ndef.maxSize} bytes)."
+                        )
                         notifyListeners(
-                            "onError",
-                            JSObject().put(
-                                "error",
-                                "Message too large for this NFC Tag (max ${ndef.maxSize} bytes)."
-                            )
+                            "onWrite",
+                            jsResponse
                         )
                         return
                     }
@@ -269,41 +281,49 @@ class NfcPlugin : Plugin() {
                     Log.d("NFC", "NDEF message successfully written to tag.")
                 }
 
-                notifyListeners("onWrite", JSObject().put("success", true))
+                jsResponse.put("success", true)
+                notifyListeners("onWrite", jsResponse)
             }
             catch (e: UnsupportedEncodingException) {
                 Log.e("NFC", "Encoding error during NDEF record creation: ${e.message}")
+                jsResponse.put(
+                    "error",
+                    "Encoding error: ${e.message}"
+                )
                 notifyListeners(
-                    "onError",
-                    JSObject().put(
-                        "error",
-                        "Encoding error: ${e.message}"
-                    )
+                    "onWrite",
+                    jsResponse
                 )
             }
             catch (e: IOException) {
                 Log.e("Nfc", "I/O error during NFC write: ${e.message}")
+                jsResponse.put(
+                    "error",
+                    "Nfc I/O error: ${e.message}"
+                )
                 notifyListeners(
-                    "onError",
-                    JSObject().put(
-                        "error",
-                        "Nfc I/O error: ${e.message}"
-                    )
+                    "onWrite",
+                    jsResponse
                 )
             }
             catch (e: Exception) {
                 Log.e("Nfc", "Error writing NDEF message: ${e.message}", e)
+                jsResponse.put(
+                    "error",
+                    "Failed to write NDEF message: ${e.message}"
+                )
                 notifyListeners(
-                    "onError",
-                    JSObject().put(
-                        "error",
-                        "Failed to write NDEF message: ${e.message}"
-                    )
+                    "onWrite",
+                    jsResponse
                 )
             }
         }
         else {
-            notifyListeners("onError", JSObject().put("error", "Failed to write NFC tag"))
+            jsResponse.put(
+                "error",
+                "Failed to write NFC tag"
+            )
+            notifyListeners("onWrite", jsResponse)
         }
     }
 
